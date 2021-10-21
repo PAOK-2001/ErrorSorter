@@ -1,8 +1,9 @@
-// Actividad 1.3: Integracion de Concpetos
-// Fecha: 12/09/2021
+// Actividad 2.3: Integracion de Concpetos
+// Fecha: 20/12/2021
 // Descripción: el programa lee un archivo .txt correspondiente a una bitácora de errores,
 // crea objetos de Error a partir de cada uno de los registros y los almacena en un vector, 
-// mismos que se ordena utilizando el algoritmo mergeSort.
+// mismos que ordena a partir del número de recurencias, posteriormente se ordena por fecha
+// utilizando un priority queue.
 // Autores:
 // Pablo Agustín Ortega Kral A00344664
 // Jose Antonio Chaires Monroy A0160114
@@ -11,14 +12,17 @@
 #include <vector> 
 #include <fstream> 
 #include <string> 
-#include <cmath> 
+#include <cmath>  
+#include <unordered_map> 
+#include "P_Queue.cpp" 
 using namespace std;
+unordered_map<string, int> counts;
 // month2absolute
 // IN: Recibe dos strings, correspondiente al mes y dia
 // OUT: Un float
 // Descripción: convierte el mes y día recibidos al número del año total al que corresponde utilizando condicionales
 // de este modo, tiene un rango de salida de 1 (1 Enero) a 365 (31 Diciembre).
-float month2absolute(string month, string day){ 
+int month2absolute(string month, string day){ 
   if(month == "Jan"){ 
     return (stoi(day));
   }
@@ -86,15 +90,36 @@ class Error{
     // float que representa el tiempo absoluto del año
     float time;
     // string que almacena la entrada registrada en bitácora
-    string log;
+    string log; 
+    string ip; 
+    int count;
   public:
     // Error
     // Descripción: constructor de la clase error, que asigna los atributos time y log respectivamente
-    Error(float t, string l){
-      time = t;
-      log = l;
+    Error(int _time, string _log, string _ip){
+      this->time = _time;
+      this->log = _log; 
+      this->ip =_ip;
     }
-    // fromTxtLine
+    // Error
+    // Descripción: constructor de la clase error, que asigna los atributos time y log respectivamente
+    Error(){
+      time = 0;
+      log = "nan";
+    }
+    // setCount
+    // IN: int correspondiente al número de ocurencias.
+    // OUT: No hay.
+    void setCount(int _count) {
+      this->count = _count;
+    } 
+    // getCount
+    // IN: No tiene argumentos.
+    // OUT: int con el número de ocurencias.
+    int getCount(){
+      return this->count;
+    }
+     // fromTxtLine
     // IN: recibe un string, correspondiente a el error registando en formato: "Mes Dia IP hr:min:seg Razón"
     // OUT: un objeto Error
     // Descripción: función estática que toma un string y lo divide basado en el char " ", generando un array 
@@ -104,16 +129,24 @@ class Error{
     static Error fromTxtLine(string line){
       float returnTime;
       string temp = line;
-      string fields[3];
+      string fields[4];
       int npos = 0;
       int token;
       string split = " ";
-      for (int i = 0; i < 3; i++){
+      for (int i = 0; i < 4; i++){
           token = line.find(split);
-          fields[i] = line.substr(npos,token);
+          fields[i] = line.substr(npos,token); 
           line.erase(0, token + split.length());
+      } 
+      string key = fields[3] + " " + to_string(month2absolute(fields[0],fields[1]));
+      // Check if key is in map 
+      if(!counts.count(key)){
+        counts.insert({key, 1}); 
+      } else {
+        counts[key] = counts[key] + 1;
       }
-      Error returnError = Error(month2absolute(fields[0],fields[1]) + time2float(fields[2]),temp);
+
+      Error returnError = Error(month2absolute(fields[0],fields[1]),temp, fields[3]);
       return returnError;
     } 
     // printLog
@@ -121,7 +154,7 @@ class Error{
     // OUT: No hay.
     // Descripción: imprime el atributo log a consola.
     void printLog(){ 
-      cout << this->log << endl;
+      cout << this->log << ": "<< this->count << endl;
     }
     // printTime
     // IN: No tiene argumentos.
@@ -131,7 +164,7 @@ class Error{
       cout << this->time << endl; 
     } 
     // getLog
-    // IN: No tiene argumentos.
+    // IN: No tiene argumenAdded files via uploadtos.
     // OUT: String correspondiente al valor log.
     // Descripción: retorna el valor de log.
     string getLog(){ 
@@ -141,8 +174,11 @@ class Error{
     // IN: No tiene argumentos.
     // OUT: Float correspondiente al valor de time.
     // Descripción: retorna el valor del atributo time.
-    float getTime(){
+    int getTime(){
       return this->time;
+    }
+    string getIp(){
+      return this->ip;
     }
 };
 // getData
@@ -183,7 +219,7 @@ void merge(vector<Error> &arr, int l, int r, int m){
       int j = 0; 
       int k = l;
       while(i < size1 && j < size2){ 
-          if(leftArray[i].getTime() <= rightArray[j].getTime()){ 
+          if(leftArray[i].getCount() <= rightArray[j].getCount()){ 
               arr[k] = leftArray[i]; 
               i++;
           } else { 
@@ -203,13 +239,12 @@ void merge(vector<Error> &arr, int l, int r, int m){
           i++; 
           k++;
       }  
-    }
+    }   
 // ordenaMerge
 // IN: Recibe un vector de objetos Eror(arr) por referencia, y tres enteros
 // OUT: No hay salida
 // Descripción: algoritmo recursivo que divide el vector tomado por referencia para mandar los subconjuntos 
 // creados a merge, donde se ordenan y juntan.
-// Complejidad: O(nlog(n)).       
 void ordenaMerge(vector<Error> &arr, int l, int r){ 
   if(l < r){ 
     int m = floor((l+r)/2); 
@@ -218,23 +253,74 @@ void ordenaMerge(vector<Error> &arr, int l, int r){
     merge(arr,l,r,m);
   } 
 } 
+// vector2queue
+// IN: Recibe un vector de objetos Eror(arr)
+// OUT: Un objeto tipo priority queue
+// Descripción: pasa los elmementos de un vector a los elementos de un queue, 
+// efectivamente, haciendo un insertion sort
+P_Queue<Error> vector2queue(vector<Error> input){
+    P_Queue<Error> returnQueue;
+    for (int i = 0; i < input.size(); i++){
+        int date = input[i].getTime();
+        Error temp = input[i];
+        returnQueue.enqueue(temp,date);
+    }
+    return returnQueue;
+}
+// queue2vector
+// IN: Recibe un Priorty Queue de objetos Eror(arr)
+// OUT: un vector de tipo error
+// Descripción: 
+vector<Error> queue2vector(P_Queue<Error> input){
+  vector<Error> returnVector;
+  while (! input.isEmpty() ) {
+        returnVector.push_back(input.top()); 
+        // if(input.top().getCount() > 1){
+        //   input.top().printLog();
+        // }
+        input.dequeue();
+    } 
+    cout << returnVector.size() << endl;
+  return returnVector;
+} 
+// PrintQueue
+// IN: La cola que se busca imprimir
+// OUT: La cola impresa
+// Descripción: Imprime todos los elementos de la cola de prioridad.
+void printQueue( P_Queue<Error> queue ) {
+  Node<Error>* currentNode = queue.head; 
+  while(currentNode){ 
+    cout << currentNode->data.getCount();
+    // if(currentNode->data.getCount() > 1) currentNode->data.printLog();
+    currentNode = currentNode->next;
+  }
+}
+
 int main(){ 
-  // Se abre el archivo "sorted.txt" en modo escritura
+  
   ofstream sorted;
   sorted.open("sorted.txt");
-  // creación del vector de errores, utilizando getData
-  vector<Error> ErrorList=getData("bitacora.txt");
-  // se ordena el vector creado utilizando el algoritmo Merge Sort
-  ordenaMerge(ErrorList, 0, ErrorList.size());
-  // se escribe los errores ordenaos en el archivo "sorted.txt"
-  for (int i = 0; i < ErrorList.size(); i++){
-      sorted << ErrorList[i].getLog()<<endl;
+  vector<Error> ErrorList = getData("bitacora.txt");
+  // Se ha contado el número de concurencias y se asigna al atributo correspondiente 
+  for (int i = 0; i < ErrorList.size(); i++)  {
+    string key = ErrorList[i].getIp() + " " + to_string(ErrorList[i].getTime()); 
+    ErrorList[i].setCount(counts[key]);
   } 
+  // for (int i = 0; i < ErrorList.size(); i++)
+  // {
+  //   if(ErrorList[i].getCount() > 1) ErrorList[i].printLog();
+  // }
+  
+  // Se ordena en base al número de concurrencias
+  ordenaMerge(ErrorList, 0, ErrorList.size() - 1);
+  // Se hace un Priority Queue con la prioridad siendo el día
+  P_Queue<Error> ErrorOrdenado = vector2queue(ErrorList);
+  
+  ErrorList = queue2vector(ErrorOrdenado); 
+  
   string lmonth, lday, hmonth, hday; 
   float low, hi;
-  bool Valid = true;
-  // Ciclo de validación que pide al usuario ingresar fechas validas hasta que estas
-  // correspondan a un mes válido, y el rango esté bien definido.
+  bool Valid = true;    
   while(Valid){
     cout << " Introduce el mes inicial: ";
     cin >> lmonth; // Se guarda el mes inicial en lmonth
@@ -271,5 +357,6 @@ int main(){
       ErrorList[i].printLog();
     }
   }
+
   return 0;
 }
